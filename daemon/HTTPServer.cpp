@@ -253,6 +253,35 @@ namespace http {
 		}
 	}
 
+	void ShowPrometheusMetrics(std::stringstream& s)	{
+		// See https://prometheus.io/docs/practices/naming/
+		// when defining additional metrics
+		s << "i2pd_uptime_seconds " << i2p::context.GetUptime() << "\n";
+
+		s << "i2pd_network_status " << i2p::context.GetStatus() << "\n";
+		s << "i2pd_network_error " << i2p::context.GetError() << "\n";
+
+		s << "i2pd_supports_ipv6 " << i2p::context.SupportsV6 () << "\n";
+		if (i2p::context.SupportsV6 ())
+		{
+			s << "i2pd_network_status_ipv6 " << i2p::context.GetStatusV6() << "\n";
+			s << "i2pd_network_error_ipv6 " << i2p::context.GetErrorV6 () << "\n";
+		}
+
+		s << "i2pd_received_bytes_total " << i2p::transport::transports.GetTotalReceivedBytes() << "\n";
+		s << "i2pd_sent_bytes_total " << i2p::transport::transports.GetTotalSentBytes () << "\n";
+		s << "i2pd_transmitted_bytes_total " << i2p::transport::transports.GetTotalTransitTransmittedBytes () << "\n";
+
+		s << "i2pd_tunnel_creation_success_rate " << i2p::tunnel::tunnels.GetTunnelCreationSuccessRate () << "\n";
+
+		s << "i2pd_num_of_routers " << i2p::data::netdb.GetNumRouters () << "\n";
+		s << "i2pd_num_floodfills " << i2p::data::netdb.GetNumFloodfills () << "\n";
+		s << "i2pd_num_leasesets " << i2p::data::netdb.GetNumLeaseSets () << "\n";
+
+		s << "i2pd_client_tunnels " << i2p::tunnel::tunnels.CountOutboundTunnels() << "\n";
+		s << "i2pd_transit_tunels " << i2p::tunnel::tunnels.CountTransitTunnels() << "\n";
+	}
+
 	void ShowStatus (std::stringstream& s, bool includeHiddenContent, i2p::http::OutputFormatEnum outputFormat)
 	{
 		s << "<b>" << tr("Uptime") << ":</b> ";
@@ -1110,17 +1139,25 @@ namespace http {
 			}
 		}
 
-		// HTML head start
-		ShowPageHead (s);
-		if (req.uri.find("page=") != std::string::npos) {
-			HandlePage (req, res, s);
-		} else if (req.uri.find("cmd=") != std::string::npos) {
-			HandleCommand (req, res, s);
+		if (req.uri.find("/metrics") != std::string::npos) {
+			res.add_header("Content-Type", "text/plain");
+			ShowPrometheusMetrics(s);
 		} else {
-			ShowStatus (s, true, i2p::http::OutputFormatEnum::forWebConsole);
-			res.add_header("Refresh", "10");
+			// HTML head start
+			ShowPageHead (s);
+			if (req.uri.find("page=") != std::string::npos) {
+				HandlePage (req, res, s);
+			} else if (req.uri.find("cmd=") != std::string::npos) {
+				HandleCommand (req, res, s);
+			} else if (req.uri.find("metrics") != std::string::npos) {
+				ShowStatus (s, true, i2p::http::OutputFormatEnum::forWebConsole);
+			}
+			else {
+				ShowStatus (s, true, i2p::http::OutputFormatEnum::forWebConsole);
+				res.add_header("Refresh", "10");
+			}
+			ShowPageTail (s);
 		}
-		ShowPageTail (s);
 
 		res.code = 200;
 		content = s.str ();
